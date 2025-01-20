@@ -24,8 +24,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install serve package globally
-RUN npm install -g serve
+# Install curl and serve package
+RUN apk add --no-cache curl && \
+    npm install -g serve
 
 # Copy built assets from build stage
 COPY --from=build /app/dist ./dist
