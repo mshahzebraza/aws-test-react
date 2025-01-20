@@ -7,11 +7,14 @@ function App() {
   const [count, setCount] = useState(0)
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
+  const [apiUrl, setApiUrl] = useState('')
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(import.meta.env.VITE_API_URL, {
+      // Use the custom URL if provided, otherwise fall back to environment variable
+      const url = apiUrl || import.meta.env.VITE_API_URL
+      const response = await fetch(url, {
         method: 'GET',
         mode: 'cors',
         headers: {
@@ -39,7 +42,26 @@ function App() {
         </a>
       </div>
       <h1>Vite + React</h1>
+      <h2>{import.meta.env.VITE_MSG}</h2>
       <div className="card">
+        <div style={{ marginBottom: '1rem' }}>
+          <input
+            type="text"
+            value={apiUrl}
+            onChange={(e) => setApiUrl(e.target.value)}
+            placeholder={`API URL (default: ${import.meta.env.VITE_API_URL})`}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              marginBottom: '0.5rem',
+              borderRadius: '4px',
+              border: '1px solid #ccc'
+            }}
+          />
+          <div style={{ fontSize: '0.8rem', color: '#666' }}>
+            Current URL: {apiUrl || import.meta.env.VITE_API_URL}
+          </div>
+        </div>
         <button onClick={() => setCount((count) => count + 1)}>
           count is {count}
         </button>
