@@ -1,0 +1,75 @@
+name: Deploy Frontend to ECS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+  TASK_DEFINITION_FAMILY_NAME: ${{ vars.TASK_DEFINITION_FAMILY_NAME }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+  CLUSTER_NAME: ${{ vars.CLUSTER_NAME }}
+  CONTAINER_NAME: ${{ vars.CONTAINER_NAME }}
+  # Frontend specific environment variables
+  VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Log in to Amazon ECR
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Build, tag, and push image to ECR
+      - name: Build, tag, and push image to ECR
+        env:
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY_URI }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build with the API URL from secrets
+          docker build \
+            --build-arg VITE_API_URL=${{ env.VITE_API_URL }} \
+            -t $ECR_REPOSITORY:$IMAGE_TAG \
+            .
+          docker push $ECR_REPOSITORY:$IMAGE_TAG
+
+      # Render the task definition
+      - name: Render Amazon ECS task definition
+        id: render-web-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          task-definition-family: ${{ env.TASK_DEFINITION_FAMILY_NAME }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.ECR_REPOSITORY_URI }}:${{ env.IMAGE_TAG }}
+
+      # Deploy to Amazon ECS service
+      - name: Deploy to Amazon ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-web-container.outputs.task-definition }}
+          service: ${{ env.SERVICE_NAME }}
+          cluster: ${{ env.CLUSTER_NAME }}
+          wait-for-service-stability: true
